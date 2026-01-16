@@ -1,53 +1,73 @@
-pipeline{
+pipeline {
     agent any
-    
-    tools{
+
+    tools {
         jdk 'java-11'
         maven 'maven'
     }
-    
-    stages{
-        stage('Git-checkout'){
-            steps{
-                git branch: 'dev' , url: 'https://github.com/manjukolkar/web-application.git'
+
+    environment {
+        IMAGE_NAME = 'nikhil123/project-1'
+        CONTAINER_NAME = 'project-1-container'
+    }
+
+    stages {
+
+        stage('Git Checkout') {
+            steps {
+                git branch: 'master',
+                    url: 'https://github.com/SUNIKHIL/web-application.git'
             }
         }
-        stage('Code Compile'){
-            steps{
+
+        stage('Code Compile') {
+            steps {
                 sh 'mvn compile'
             }
         }
-        stage('Code Package'){
-            steps{
-                sh 'mvn clean install'
+
+        stage('Code Package') {
+            steps {
+                sh 'mvn clean package -DskipTests'
             }
         }
-        stage('Build and tag'){
-            steps{
-                sh 'docker build -t manjukolkar007/project-1 .'
+
+        stage('Docker Build') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME .'
             }
         }
-        stage('Containerisation'){
-            steps{
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'docker-hub-credentials-nikhil123',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                sh 'docker push $IMAGE_NAME'
+            }
+        }
+
+        stage('Run Container') {
+            steps {
                 sh '''
-                docker run -it -d --name c8 -p 9008:8080 manjukolkar007/project-1
+                docker rm -f $CONTAINER_NAME || true
+                docker run -d \
+                  --name $CONTAINER_NAME \
+                  -p 9008:8080 \
+                  $IMAGE_NAME
                 '''
             }
         }
-        stage('Login to Docker Hub') {
-                    steps {
-                        script {
-                            withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials-nikhil123', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                                sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin"
-                            }
-                        }
-                    }
-        }
-         stage('Pushing image to repository'){
-            steps{
-                sh 'docker push manjukolkar007/project-1'
-            }
-        }
-        
     }
 }
